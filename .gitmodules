@@ -1,0 +1,6 @@
+[submodule "stackalytics-contribution"]
+	path = stackalytics-contribution
+	url = git@github.com:tovin07/stackalytics-contribution.git
+[submodule "stackalytics_contribution"]
+	path = stackalytics_contribution
+	url = git@github.com:tovin07/stackalytics_contribution.git

@@ -160,13 +160,17 @@ def render_html(path, html_body):
 
 def save(target, title, markdown, html):
     friday = get_friday_date()
-    directory = os.path.join(target, '_'.join([friday, WEEKLY_REPORT]))
+    report_dir = '_'.join([friday, WEEKLY_REPORT])
+    directory = os.path.join(target, report_dir)
     file_name = '_'.join([title.replace(' ', '_'), friday])
-    file_path = os.path.join(target, directory, file_name)
+    file_path = os.path.join(target, report_dir, file_name)
     if not os.path.exists(directory):
         os.makedirs(directory)
     write_file(file_path + '.md', markdown)
     write_file(file_path + '.html', html)
+
+    # Print done message
+    print("Weekly report is generated in {} directory.".format(directory))
 
 
 def write_file(path, content):

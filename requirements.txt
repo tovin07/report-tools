@@ -1,5 +1,5 @@
-# Requirements from stackalytics-contributions
 Jinja2
+# Requirements from stackalytics-contributions
 python-dateutil
 requests
 tabulate

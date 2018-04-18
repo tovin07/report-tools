@@ -3,6 +3,7 @@ import codecs
 import datetime
 import jinja2
 import os
+import re
 
 import gfm_compile
 import stackalytics_contribution.main as sc
@@ -18,6 +19,9 @@ TEMPLATE = 'template.html'
 TITLE = 'Container and Troubleshooting team weekly report'
 ANCHOR = ' <a id="{}"></a> '
 TOC = '[^](#toc)'
+TOC_HEADING = '## <a id="toc"></a> Table of contents'
+SECTION_SEPARATION = '\n\n'
+WEEKLY_REPORT = 'WeeklyReport'
 
 
 def parse_args():
@@ -46,7 +50,15 @@ def list_files(path):
     return files
 
 
-def add_anchor_tag(directory, file_name, header):
+def get_heading(first_line):
+    return re.split(r'\s+', first_line.strip(), maxsplit=1)[-1]
+
+
+def create_anchor_id(directory, file_name,):
+    return '-'.join([directory, file_name.split('.')[0]])
+
+
+def add_anchor_tag(anchor_id, header):
     """
     Add anchor tag to header.
     Input and output will look like below.
@@ -57,15 +69,10 @@ def add_anchor_tag(directory, file_name, header):
     Output:
         ## <a id="task02"></a> Task 02 - Do something [^](#toc)
     """
-    id_attr = '-'.join([directory[:-1], file_name.split('.')[0]])
-    anchor = ANCHOR.format(id_attr)
+    anchor = ANCHOR.format(anchor_id)
     # Replace the first space with anchor tag
     header_with_anchor = header.replace(' ', anchor, 1)
     return ' '.join([header_with_anchor.strip(), TOC])
-
-
-def generate_toc():
-    return ''
 
 
 def get_friday_date():
@@ -75,17 +82,57 @@ def get_friday_date():
     return friday.strftime('%Y%m%d')
 
 
+def generate_toc(headings, anchor_ids):
+    """
+    Generate table of contents.
+
+    Input:
+        headings: List of headings
+        anchor_ids: List of anchor ids
+
+    Output:
+        Markdown string with table of contents look like below
+
+        ```markdown
+        ## <a id="toc"></a> Table of contents
+
+        1. [Task 01 - Do do](#tasks-01)
+        2. [Task 02 - Da da](#tasks-02)
+        3. [Task 03 - Young wild and free](#tasks-03)
+        4. [Contributions](#others-contributions)
+        5. [IRC meetings](#others-irc-meeeting)
+        6. [Issues](#others-issues)
+        ```
+    """
+    contexts = zip(range(1, len(headings) + 1), headings, anchor_ids)
+    toc_entries = [
+        '{}. [{}](#{})'.format(order, heading, anchor_id)
+        for order, heading, anchor_id in contexts
+    ]
+    return '\n\n'.join([TOC_HEADING, '\n'.join(toc_entries)])
+
+
 def read_markdown_files(files):
     """
     Read all markdown files and concatenate to one file.
+
+    Return:
+        markdown contents, headings, anchor ids for those headings
     """
     contents = []
+    headings = []
+    anchor_ids = []
     for directory, file_name, abs_file_path in files:
         with codecs.open(abs_file_path, mode='r', encoding='utf-8') as md:
+            anchor_id = create_anchor_id(directory, file_name)
             # First line is section header --> Add anchor tag to it
-            header = add_anchor_tag(directory, file_name, md.readline())
+            first_line = md.readline()
+            header = add_anchor_tag(anchor_id, first_line)
             contents.append('\n'.join([header, md.read()]))
-    return '\n\n'.join(contents)
+            headings.append(get_heading(first_line))
+            anchor_ids.append(anchor_id)
+
+    return '\n'.join(contents), headings, anchor_ids
 
 
 def render_string(contents, team_table, member_table):
@@ -96,7 +143,7 @@ def render_string(contents, team_table, member_table):
     return template.render(team_table=team_table, member_table=member_table)
 
 
-def render_html(path, title, html_body):
+def render_html(path, html_body):
     """
     Using jinja2 to render html template.
 
@@ -108,14 +155,14 @@ def render_html(path, title, html_body):
     """
     env = jinja2.Environment(loader=jinja2.FileSystemLoader(path))
     template = env.get_template(TEMPLATE)
-    return template.render(title=title, body=html_body)
+    return template.render(title=TITLE, body=html_body)
 
 
 def save(target, title, markdown, html):
     friday = get_friday_date()
-    directory = os.path.join(target, friday)
+    directory = os.path.join(target, '_'.join([friday, WEEKLY_REPORT]))
     file_name = '_'.join([title.replace(' ', '_'), friday])
-    file_path = os.path.join(target, friday, file_name)
+    file_path = os.path.join(target, directory, file_name)
     if not os.path.exists(directory):
         os.makedirs(directory)
     write_file(file_path + '.md', markdown)
@@ -135,15 +182,21 @@ def main():
     files = list_files(args.path)
 
     # Heading of markdown file
-    heading = ' '.join(['#', TITLE])
+    title = ' '.join(['#', TITLE])
 
-    # Current week
+    # TODO: Add current week
     # current_week = ' '
 
     # All the markdown content from raws
-    markdown_contents = read_markdown_files(files)
-    # contents = '\n\n'.join([heading, current_week, markdown_contents])
-    contents = '\n\n'.join([heading, markdown_contents])
+    markdown_contents, headings, anchor_ids = read_markdown_files(files)
+
+    # Generate TOC from headings and anchor ids
+    tocs = generate_toc(headings, anchor_ids)
+
+    # Make contents
+    # contents = SECTION_SEPARATION.join([heading, current_week,
+    #                                     tocs, markdown_contents])
+    contents = SECTION_SEPARATION.join([title, tocs, markdown_contents])
 
     # Get contribution information
     team_table, member_table = sc.generate_data_table()
@@ -155,11 +208,12 @@ def main():
     html_body = gfm_compile.compile(markdown)
 
     # Render template from html
-    html = render_html(args.path.rstrip('/'), TITLE, html_body)
+    html = render_html(args.path.rstrip('/'), html_body)
 
     # Save markdown and html content to target directory
     dir_name = os.path.dirname(args.path.rstrip('/'))
     save(dir_name, TITLE, markdown, html)
+
 
 if __name__ == '__main__':
     main()

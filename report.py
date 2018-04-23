@@ -20,8 +20,10 @@ TITLE = 'Container and Troubleshooting team weekly report'
 ANCHOR = ' <a id="{}"></a> '
 TOC = '[^](#toc)'
 TOC_HEADING = '## <a id="toc"></a> Table of contents'
-SECTION_SEPARATION = '\n\n'
+SECTION_SEP = '\n\n'
 WEEKLY_REPORT = 'WeeklyReport'
+CURRENT_WEEK = 'Current week: [{} - {} | R-{}]({})'
+CYCLE_SCHEDULE = 'https://releases.openstack.org/rocky/schedule.html'
 
 
 def parse_args():
@@ -55,7 +57,7 @@ def get_heading(first_line):
 
 
 def create_anchor_id(directory, file_name,):
-    return '-'.join([directory, file_name.split('.')[0]])
+    return '-'.join([directory, re.sub(r'\s+', '-', file_name.split('.')[0])])
 
 
 def add_anchor_tag(anchor_id, header):
@@ -75,11 +77,28 @@ def add_anchor_tag(anchor_id, header):
     return ' '.join([header_with_anchor.strip(), TOC])
 
 
-def get_friday_date():
-    """Return the friday date of this week."""
+def get_date_of_week(date_of_week):
+    """
+    Return the date of this week.
+
+    Input:
+        date_of_week: Offset of the date with base 0
+                      0 is for Monday
+                      ...
+                      6 is for Sunday
+
+    Output example: 2018/04/20
+    """
     today = datetime.date.today()
-    friday = today + datetime.timedelta((4 - today.weekday()) % 7)
-    return friday.strftime('%Y%m%d')
+    date = today + datetime.timedelta(date_of_week - today.weekday())
+    return date
+
+
+def create_current_week():
+    _, remaining_weeks = sc.calculate_passed_time()
+    monday = get_date_of_week(0).strftime("%b %d")
+    friday = get_date_of_week(4).strftime("%b %d")
+    return CURRENT_WEEK.format(monday, friday, remaining_weeks, CYCLE_SCHEDULE)
 
 
 def generate_toc(headings, anchor_ids):
@@ -159,7 +178,7 @@ def render_html(path, html_body):
 
 
 def save(target, title, markdown, html):
-    friday = get_friday_date()
+    friday = get_date_of_week(4).strftime("%Y%m%d")
     report_dir = '_'.join([friday, WEEKLY_REPORT])
     directory = os.path.join(target, report_dir)
     file_name = '_'.join([title.replace(' ', '_'), friday])
@@ -188,8 +207,8 @@ def main():
     # Heading of markdown file
     title = ' '.join(['#', TITLE])
 
-    # TODO: Add current week
-    # current_week = ' '
+    # Current week string
+    week = create_current_week()
 
     # All the markdown content from raws
     markdown_contents, headings, anchor_ids = read_markdown_files(files)
@@ -198,9 +217,7 @@ def main():
     tocs = generate_toc(headings, anchor_ids)
 
     # Make contents
-    # contents = SECTION_SEPARATION.join([heading, current_week,
-    #                                     tocs, markdown_contents])
-    contents = SECTION_SEPARATION.join([title, tocs, markdown_contents])
+    contents = SECTION_SEP.join([title, week, tocs, markdown_contents])
 
     # Get contribution information
     team_table, member_table = sc.generate_data_table()
